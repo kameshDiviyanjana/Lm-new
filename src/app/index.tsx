@@ -1,98 +1,222 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Pressable, ImageBackground, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Spacing } from '@/constants/theme';
+import { router } from 'expo-router';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useLMS } from '@/context/LMSContext';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function OnboardingScreen() {
+  const { userId, user } = useLMS();
+
+  const handleGetStarted = () => {
+    if (userId) {
+      if (user?.role === 'instructor') {
+        router.replace('/instructor' as any);
+      } else {
+        router.replace('/dashboard' as any);
+      }
+    } else {
+      router.replace('/login' as any);
+    }
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <ImageBackground
+      source={{ uri: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1080&auto=format&fit=crop&q=80' }}
+      style={styles.backgroundImage}
+      blurRadius={10}
+    >
+      <View style={styles.overlay} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+          {/* Logo & Brand Info */}
+          <View style={styles.brandContainer}>
+            <View style={styles.logoPill}>
+              <Text style={styles.logoText}>📐 LMS</Text>
+            </View>
+            <Text style={styles.brandName}>AETHER ACADEMY</Text>
+          </View>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+          {/* Hero Content Section */}
+          <View style={styles.heroSection}>
+            <Text style={styles.heroTitle}>
+              Shape Your Future,{'\n'}
+              <Text style={styles.highlightText}>Master New Skills</Text>
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              Experience a premium learning ecosystem with modules taught by leading experts in Development, Design, AI, and Marketing.
+            </Text>
+          </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+          {/* Platform Stats Grid */}
+          <View style={styles.statsGrid}>
+            <View style={styles.glassCard}>
+              <Text style={styles.statNumber}>15K+</Text>
+              <Text style={styles.statLabel}>Students</Text>
+            </View>
+            <View style={styles.glassCard}>
+              <Text style={styles.statNumber}>4.9★</Text>
+              <Text style={styles.statLabel}>Average Rating</Text>
+            </View>
+            <View style={styles.glassCard}>
+              <Text style={styles.statNumber}>98%</Text>
+              <Text style={styles.statLabel}>Completion</Text>
+            </View>
+          </View>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
+          {/* Action Button */}
+          <View style={styles.actionContainer}>
+            <Pressable
+              onPress={handleGetStarted}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                {
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                },
+              ]}
+            >
+              <Text style={styles.buttonText}>Get Started</Text>
+              <Text style={styles.buttonArrow}> →</Text>
+            </Pressable>
+            
+            <Text style={styles.footerNote}>
+              By signing up, you agree to our Terms of Service & Privacy Policy.
+            </Text>
+          </View>
+        </ScrollView>
       </SafeAreaView>
-    </ThemedView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)', // Deep Slate Blue opacity cover
+  },
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
   },
-  safeArea: {
-    flex: 1,
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.five,
+  },
+  brandContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+    gap: Spacing.two,
+    marginTop: Platform.OS === 'ios' ? 0 : Spacing.two,
+  },
+  logoPill: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  logoText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  brandName: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 2,
   },
   heroSection: {
+    marginVertical: Spacing.four,
+    gap: Spacing.three,
+  },
+  heroTitle: {
+    color: '#FFF',
+    fontSize: 38,
+    fontWeight: '900',
+    lineHeight: 46,
+    letterSpacing: -1,
+  },
+  highlightText: {
+    color: '#818CF8', // Bright Indigo
+  },
+  heroSubtitle: {
+    color: '#CBD5E1',
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginVertical: Spacing.three,
+  },
+  glassCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 16,
+    padding: Spacing.three,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    gap: 4,
   },
-  title: {
-    textAlign: 'center',
+  statNumber: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '800',
   },
-  code: {
-    textTransform: 'uppercase',
+  statLabel: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '500',
   },
-  stepContainer: {
+  actionContainer: {
     gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+  },
+  primaryButton: {
+    backgroundColor: '#6366F1',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 56,
+    borderRadius: 16,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  buttonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  buttonArrow: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  footerNote: {
+    color: '#64748B',
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });
