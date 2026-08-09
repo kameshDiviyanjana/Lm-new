@@ -295,8 +295,7 @@ const styles = StyleSheet.create({
 //   default: 'http://localhost:5001/api'
 // });
 
-// const BASE_URL = 'https://0cwbrzzn-5001.asse.devtunnels.ms/api';
-const BASE_URL = 'http://localhost:5001/api';
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_BE;
 
 
 export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
