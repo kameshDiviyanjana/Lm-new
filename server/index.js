@@ -84,9 +84,50 @@ const UserProfileSchema = new mongoose.Schema({
   }
 });
 
+// Group Schemas
+const MessageSchema = new mongoose.Schema({
+  id: String,
+  senderId: String,
+  senderName: String,
+  senderAvatar: String,
+  senderRole: String,
+  content: String,
+  timestamp: { type: Date, default: Date.now }
+});
+
+const FileSchema = new mongoose.Schema({
+  id: String,
+  name: String,
+  size: String,
+  sharedBy: String,
+  timestamp: { type: Date, default: Date.now },
+  url: String
+});
+
+const AnnouncementSchema = new mongoose.Schema({
+  id: String,
+  title: String,
+  content: String,
+  timestamp: { type: Date, default: Date.now },
+  postedBy: String
+});
+
+const GroupSchema = new mongoose.Schema({
+  id: { type: String, unique: true },
+  name: String,
+  description: String,
+  code: { type: String, unique: true },
+  createdBy: String, // userId of instructor
+  members: [String], // userIds
+  discussions: [MessageSchema],
+  files: [FileSchema],
+  announcements: [AnnouncementSchema]
+});
+
 // Models
 const Course = mongoose.model('Course', CourseSchema);
 const UserProfile = mongoose.model('UserProfile', UserProfileSchema);
+const Group = mongoose.model('Group', GroupSchema);
 
 // Initial Mock Data
 const INITIAL_COURSES = [
@@ -663,6 +704,201 @@ app.post('/api/user/reset', async (req, res) => {
     res.json(seededUser);
   } catch (err) {
     res.status(400).json({ error: 'Reset failed: ' + err.message });
+  }
+});
+
+// Collaborative Group Workspace Endpoints
+
+// Fetch all groups the current user is a member of
+app.get('/api/groups', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const groups = await Group.find({ members: userId }).sort({ _id: -1 });
+    res.json(groups);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch groups: ' + err.message });
+  }
+});
+
+// Create a new group (Instructor only)
+app.post('/api/groups', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const user = await UserProfile.findOne({ userId });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role !== 'instructor') {
+      return res.status(403).json({ error: 'Only instructors can create groups' });
+    }
+
+    const { name, description } = req.body;
+    if (!name || !description) {
+      return res.status(400).json({ error: 'Name and description are required' });
+    }
+
+    // Generate unique code (e.g. GR-1234)
+    let code;
+    let codeExists = true;
+    while (codeExists) {
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      code = `GR-${rand}`;
+      const existing = await Group.findOne({ code });
+      if (!existing) codeExists = false;
+    }
+
+    const newGroup = new Group({
+      id: `group-${Date.now()}`,
+      name,
+      description,
+      code,
+      createdBy: userId,
+      members: [userId],
+      discussions: [],
+      files: [],
+      announcements: []
+    });
+
+    await newGroup.save();
+    res.status(201).json(newGroup);
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to create group: ' + err.message });
+  }
+});
+
+// Join group via code (Student only)
+app.post('/api/groups/join', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: 'Group code is required' });
+    }
+
+    const group = await Group.findOne({ code: code.toUpperCase().trim() });
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (group.members.includes(userId)) {
+      return res.status(400).json({ error: 'You are already a member of this group' });
+    }
+
+    group.members.push(userId);
+    await group.save();
+    res.json(group);
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to join group: ' + err.message });
+  }
+});
+
+// Post an announcement (Instructor only)
+app.post('/api/groups/:groupId/announcements', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const user = await UserProfile.findOne({ userId });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const { groupId } = req.params;
+    const { title, content } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required' });
+    }
+
+    const group = await Group.findOne({ id: groupId });
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    if (group.createdBy !== userId && user.role !== 'instructor') {
+      return res.status(403).json({ error: 'Only instructors can post announcements' });
+    }
+
+    const announcement = {
+      id: `ann-${Date.now()}`,
+      title,
+      content,
+      timestamp: new Date(),
+      postedBy: user.name
+    };
+
+    group.announcements.push(announcement);
+    await group.save();
+    res.status(201).json(group);
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to post announcement: ' + err.message });
+  }
+});
+
+// Post a message in the discussion chat (Student & Instructor)
+app.post('/api/groups/:groupId/messages', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const user = await UserProfile.findOne({ userId });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const { groupId } = req.params;
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    const group = await Group.findOne({ id: groupId });
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    if (!group.members.includes(userId)) {
+      return res.status(403).json({ error: 'You are not a member of this group' });
+    }
+
+    const message = {
+      id: `msg-${Date.now()}`,
+      senderId: userId,
+      senderName: user.name,
+      senderAvatar: user.avatar,
+      senderRole: user.role,
+      content,
+      timestamp: new Date()
+    };
+
+    group.discussions.push(message);
+    await group.save();
+    res.status(201).json(group);
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to post message: ' + err.message });
+  }
+});
+
+// Share a file in the workspace (Student & Instructor)
+app.post('/api/groups/:groupId/files', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const user = await UserProfile.findOne({ userId });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const { groupId } = req.params;
+    const { name, size } = req.body;
+    if (!name || !size) {
+      return res.status(400).json({ error: 'File name and size are required' });
+    }
+
+    const group = await Group.findOne({ id: groupId });
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+
+    if (!group.members.includes(userId)) {
+      return res.status(403).json({ error: 'You are not a member of this group' });
+    }
+
+    const fileObj = {
+      id: `file-${Date.now()}`,
+      name,
+      size,
+      sharedBy: user.name,
+      timestamp: new Date(),
+      url: '#'
+    };
+
+    group.files.push(fileObj);
+    await group.save();
+    res.status(201).json(group);
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to share file: ' + err.message });
   }
 });
 

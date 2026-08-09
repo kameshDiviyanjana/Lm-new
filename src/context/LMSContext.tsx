@@ -64,11 +64,51 @@ export interface UserProfile {
   enrolled: Record<string, EnrollmentState>;
 }
 
+export interface GroupMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  senderRole: 'student' | 'instructor';
+  content: string;
+  timestamp: string;
+}
+
+export interface GroupFile {
+  id: string;
+  name: string;
+  size: string;
+  sharedBy: string;
+  timestamp: string;
+  url: string;
+}
+
+export interface GroupAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  timestamp: string;
+  postedBy: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  code: string;
+  createdBy: string;
+  members: string[];
+  discussions: GroupMessage[];
+  files: GroupFile[];
+  announcements: GroupAnnouncement[];
+}
+
 interface LMSContextType {
   courses: Course[];
   user: UserProfile;
   isDarkMode: boolean;
   userId: string | null;
+  groups: Group[];
   enrollInCourse: (courseId: string) => void;
   completeLecture: (courseId: string, lectureId: string) => void;
   submitQuizScore: (courseId: string, score: number) => void;
@@ -80,6 +120,12 @@ interface LMSContextType {
   login: (email: string, password: string) => Promise<UserProfile | null>;
   register: (email: string, password: string, name: string, role: 'student' | 'instructor') => Promise<UserProfile | null>;
   logout: () => void;
+  fetchGroups: () => Promise<void>;
+  createGroup: (name: string, description: string) => Promise<Group | null>;
+  joinGroup: (code: string) => Promise<Group | null>;
+  postAnnouncement: (groupId: string, title: string, content: string) => Promise<Group | null>;
+  postMessage: (groupId: string, content: string) => Promise<Group | null>;
+  shareFile: (groupId: string, name: string, size: string) => Promise<Group | null>;
 }
 
 const LMSContext = createContext<LMSContextType | undefined>(undefined);
@@ -300,6 +346,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL_BE;
 
 export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(() => {
     if (Platform.OS === 'web') {
@@ -321,6 +368,9 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchCourses();
     if (userId) {
       fetchUser(userId);
+      fetchGroups();
+    } else {
+      setGroups([]);
     }
   }, [userId]);
 
@@ -560,10 +610,146 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const fetchGroups = async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`${BASE_URL}/groups`, {
+        headers: {
+          'x-user-id': userId
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch groups:', err);
+    }
+  };
+
+  const createGroup = async (name: string, description: string): Promise<Group | null> => {
+    if (!userId) return null;
+    try {
+      const res = await fetch(`${BASE_URL}/groups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId
+        },
+        body: JSON.stringify({ name, description })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(prev => [data, ...prev]);
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to create group:', err);
+      return null;
+    }
+  };
+
+  const joinGroup = async (code: string): Promise<Group | null> => {
+    if (!userId) return null;
+    try {
+      const res = await fetch(`${BASE_URL}/groups/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId
+        },
+        body: JSON.stringify({ code })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(prev => [data, ...prev]);
+        return data;
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to join group');
+        return null;
+      }
+    } catch (err) {
+      console.error('Failed to join group:', err);
+      return null;
+    }
+  };
+
+  const postAnnouncement = async (groupId: string, title: string, content: string): Promise<Group | null> => {
+    if (!userId) return null;
+    try {
+      const res = await fetch(`${BASE_URL}/groups/${groupId}/announcements`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId
+        },
+        body: JSON.stringify({ title, content })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(prev => prev.map(g => g.id === groupId ? data : g));
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to post announcement:', err);
+      return null;
+    }
+  };
+
+  const postMessage = async (groupId: string, content: string): Promise<Group | null> => {
+    if (!userId) return null;
+    try {
+      const res = await fetch(`${BASE_URL}/groups/${groupId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId
+        },
+        body: JSON.stringify({ content })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(prev => prev.map(g => g.id === groupId ? data : g));
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to post message:', err);
+      return null;
+    }
+  };
+
+  const shareFile = async (groupId: string, name: string, size: string): Promise<Group | null> => {
+    if (!userId) return null;
+    try {
+      const res = await fetch(`${BASE_URL}/groups/${groupId}/files`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId
+        },
+        body: JSON.stringify({ name, size })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(prev => prev.map(g => g.id === groupId ? data : g));
+        return data;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to share file:', err);
+      return null;
+    }
+  };
+
   return (
     <LMSContext.Provider
       value={{
         courses,
+        groups,
         user,
         isDarkMode,
         userId,
@@ -577,7 +763,13 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addQuizQuestion,
         login,
         register,
-        logout
+        logout,
+        fetchGroups,
+        createGroup,
+        joinGroup,
+        postAnnouncement,
+        postMessage,
+        shareFile
       }}
     >
       {children}

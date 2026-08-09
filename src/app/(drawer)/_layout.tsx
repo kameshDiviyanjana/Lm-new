@@ -21,6 +21,11 @@ function CustomDrawerContent(props: any) {
       path: '/explore',
     },
     {
+      name: 'Collaborative Groups',
+      icon: '👥',
+      path: '/groups',
+    },
+    {
       name: 'My Profile',
       icon: '👤',
       path: '/profile',
@@ -204,6 +209,12 @@ export default function DrawerLayout() {
         name="profile"
         options={{
           title: 'My Profile',
+        }}
+      />
+      <Drawer.Screen
+        name="groups"
+        options={{
+          title: 'Collaborative Groups',
         }}
       />
       <Drawer.Screen
