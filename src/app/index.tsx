@@ -11,7 +11,9 @@ export default function OnboardingScreen() {
 
   const handleGetStarted = () => {
     if (userId) {
-      if (user?.role === 'instructor') {
+      if (user?.role === 'admin') {
+        router.replace('/admin' as any);
+      } else if (user?.role === 'instructor') {
         router.replace('/instructor' as any);
       } else {
         router.replace('/dashboard' as any);

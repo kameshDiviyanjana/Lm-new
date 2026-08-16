@@ -58,7 +58,7 @@ export interface UserProfile {
   name: string;
   avatar: string;
   // title: string;
-  role: 'student' | 'instructor';
+  role: 'student' | 'instructor' | 'admin';
   xp: number;
   streak: number;
   enrolled: Record<string, EnrollmentState>;
@@ -69,7 +69,7 @@ export interface GroupMessage {
   senderId: string;
   senderName: string;
   senderAvatar: string;
-  senderRole: 'student' | 'instructor';
+  senderRole: 'student' | 'instructor' | 'admin';
   content: string;
   timestamp: string;
 }
@@ -118,7 +118,7 @@ interface LMSContextType {
   resetProgress: () => void;
   addQuizQuestion: (courseId: string, question: Omit<Question, 'id'>) => Promise<void>;
   login: (email: string, password: string) => Promise<UserProfile | null>;
-  register: (email: string, password: string, name: string, role: 'student' | 'instructor') => Promise<UserProfile | null>;
+  register: (email: string, password: string, name: string, role: 'student' | 'instructor' | 'admin') => Promise<UserProfile | null>;
   logout: () => void;
   fetchGroups: () => Promise<void>;
   createGroup: (name: string, description: string) => Promise<Group | null>;
@@ -126,6 +126,10 @@ interface LMSContextType {
   postAnnouncement: (groupId: string, title: string, content: string) => Promise<Group | null>;
   postMessage: (groupId: string, content: string) => Promise<Group | null>;
   shareFile: (groupId: string, name: string, size: string) => Promise<Group | null>;
+  fetchAdminStats: () => Promise<{ students: number; instructors: number; courses: number; groups: number } | null>;
+  fetchAdminUsers: () => Promise<UserProfile[]>;
+  createAdminUser: (userData: { name: string; email: string; password; role: 'student' | 'instructor' | 'admin'; title?: string }) => Promise<boolean>;
+  deleteAdminUser: (userId: string) => Promise<boolean>;
 }
 
 const LMSContext = createContext<LMSContextType | undefined>(undefined);
@@ -434,7 +438,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const register = async (email: string, password: string, name: string, role: 'student' | 'instructor'): Promise<UserProfile | null> => {
+  const register = async (email: string, password: string, name: string, role: 'student' | 'instructor' | 'admin'): Promise<UserProfile | null> => {
     try {
       const res = await fetch(`${BASE_URL}/auth/register`, {
         method: 'POST',
@@ -745,6 +749,88 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const fetchAdminStats = async () => {
+    if (!userId) return null;
+    try {
+      const res = await fetch(`${BASE_URL}/admin/stats`, {
+        headers: {
+          'x-user-id': userId
+        }
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to fetch admin stats:', err);
+      return null;
+    }
+  };
+
+  const fetchAdminUsers = async () => {
+    if (!userId) return [];
+    try {
+      const res = await fetch(`${BASE_URL}/admin/users`, {
+        headers: {
+          'x-user-id': userId
+        }
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      return [];
+    } catch (err) {
+      console.error('Failed to fetch admin users:', err);
+      return [];
+    }
+  };
+
+  const createAdminUser = async (userData: { name: string; email: string; password; role: 'student' | 'instructor' | 'admin'; title?: string }) => {
+    if (!userId) return false;
+    try {
+      const res = await fetch(`${BASE_URL}/admin/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId
+        },
+        body: JSON.stringify(userData)
+      });
+      if (res.ok) {
+        return true;
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to create user');
+        return false;
+      }
+    } catch (err) {
+      console.error('Failed to create admin user:', err);
+      return false;
+    }
+  };
+
+  const deleteAdminUser = async (targetUserId: string) => {
+    if (!userId) return false;
+    try {
+      const res = await fetch(`${BASE_URL}/admin/users/${targetUserId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': userId
+        }
+      });
+      if (res.ok) {
+        return true;
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete user');
+        return false;
+      }
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      return false;
+    }
+  };
+
   return (
     <LMSContext.Provider
       value={{
@@ -769,7 +855,11 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinGroup,
         postAnnouncement,
         postMessage,
-        shareFile
+        shareFile,
+        fetchAdminStats,
+        fetchAdminUsers,
+        createAdminUser,
+        deleteAdminUser
       }}
     >
       {children}

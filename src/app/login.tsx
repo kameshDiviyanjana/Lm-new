@@ -30,7 +30,9 @@ export default function LoginScreen() {
       const loggedInUser = await login(email.trim(), password);
       setLoading(false);
       if (loggedInUser) {
-        if (loggedInUser.role === 'instructor') {
+        if (loggedInUser.role === 'admin') {
+          router.replace('/admin' as any);
+        } else if (loggedInUser.role === 'instructor') {
           router.replace('/instructor' as any);
         } else {
           router.replace('/dashboard' as any);
@@ -45,7 +47,9 @@ export default function LoginScreen() {
       const registeredUser = await register(email.trim(), password, name.trim(), role);
       setLoading(false);
       if (registeredUser) {
-        if (registeredUser.role === 'instructor') {
+        if (registeredUser.role === 'admin') {
+          router.replace('/admin' as any);
+        } else if (registeredUser.role === 'instructor') {
           router.replace('/instructor' as any);
         } else {
           router.replace('/dashboard' as any);
@@ -54,13 +58,20 @@ export default function LoginScreen() {
     }
   };
 
-  const handleDemoLogin = async (role: 'student' | 'instructor') => {
+  const handleDemoLogin = async (role: 'student' | 'instructor' | 'admin') => {
     setLoading(true);
-    const demoEmail = role === 'student' ? 'student@aether.com' : 'alex@aether.com';
+    let demoEmail = 'student@aether.com';
+    if (role === 'instructor') {
+      demoEmail = 'alex@aether.com';
+    } else if (role === 'admin') {
+      demoEmail = 'admin@aether.com';
+    }
     const loggedInUser = await login(demoEmail, 'password');
     setLoading(false);
     if (loggedInUser) {
-      if (loggedInUser.role === 'instructor') {
+      if (loggedInUser.role === 'admin') {
+        router.replace('/admin' as any);
+      } else if (loggedInUser.role === 'instructor') {
         router.replace('/instructor' as any);
       } else {
         router.replace('/dashboard' as any);
@@ -280,7 +291,7 @@ export default function LoginScreen() {
               ]}
             >
               <Text style={styles.demoEmoji}>🎓</Text>
-              <Text style={[styles.demoTitle, { color: theme.text }]}>Demo Student</Text>
+              <Text style={[styles.demoTitle, { color: theme.text }]}>Student</Text>
               <Text style={[styles.demoSub, { color: theme.textSecondary }]}>student@aether.com</Text>
             </Pressable>
 
@@ -298,8 +309,26 @@ export default function LoginScreen() {
               ]}
             >
               <Text style={styles.demoEmoji}>🚀</Text>
-              <Text style={[styles.demoTitle, { color: theme.text }]}>Demo Instructor</Text>
+              <Text style={[styles.demoTitle, { color: theme.text }]}>Instructor</Text>
               <Text style={[styles.demoSub, { color: theme.textSecondary }]}>alex@aether.com</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleDemoLogin('admin')}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.demoCard,
+                {
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }]
+                }
+              ]}
+            >
+              <Text style={styles.demoEmoji}>🛠️</Text>
+              <Text style={[styles.demoTitle, { color: theme.text }]}>Admin</Text>
+              <Text style={[styles.demoSub, { color: theme.textSecondary }]}>admin@aether.com</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -434,6 +463,7 @@ const styles = StyleSheet.create({
   },
   demoGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.two,
   },
   demoCard: {

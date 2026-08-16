@@ -35,6 +35,11 @@ function CustomDrawerContent(props: any) {
       icon: '🚀',
       path: '/instructor',
     },
+    {
+      name: 'Admin Panel',
+      icon: '🛠️',
+      path: '/admin',
+    },
   ];
 
   return (
@@ -74,7 +79,11 @@ function CustomDrawerContent(props: any) {
       {/* Navigation List */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.menuContainer}>
-          {menuItems.filter(item => item.path !== '/instructor' || user.role === 'instructor').map((item) => {
+          {menuItems.filter(item => {
+            if (item.path === '/instructor') return user.role === 'instructor';
+            if (item.path === '/admin') return user.role === 'admin';
+            return true;
+          }).map((item) => {
             const isActive = pathname === item.path;
             return (
               <Pressable
@@ -221,6 +230,12 @@ export default function DrawerLayout() {
         name="instructor"
         options={{
           title: 'Instructor Workspace',
+        }}
+      />
+      <Drawer.Screen
+        name="admin"
+        options={{
+          title: 'Admin Panel',
         }}
       />
     </Drawer>

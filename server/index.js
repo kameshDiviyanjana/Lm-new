@@ -74,7 +74,7 @@ const UserProfileSchema = new mongoose.Schema({
   name: { type: String, default: 'Jane Doe' },
   avatar: { type: String, default: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80' },
   title: { type: String, default: 'Aspiring Full Stack Engineer' },
-  role: { type: String, enum: ['student', 'instructor'], default: 'student' },
+  role: { type: String, enum: ['student', 'instructor', 'admin'], default: 'student' },
   xp: { type: Number, default: 320 },
   streak: { type: Number, default: 5 },
   enrolled: {
@@ -402,6 +402,25 @@ async function seedDatabase() {
       });
       await instructorUser.save();
       console.log('Seeded instructor profile');
+    }
+
+    // Seed admin user
+    let adminUser = await UserProfile.findOne({ email: 'admin@aether.com' });
+    if (!adminUser) {
+      adminUser = new UserProfile({
+        userId: 'admin_user',
+        email: 'admin@aether.com',
+        password: 'password',
+        name: 'Academy Admin',
+        avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
+        title: 'System Administrator',
+        role: 'admin',
+        xp: 9999,
+        streak: 100,
+        enrolled: {}
+      });
+      await adminUser.save();
+      console.log('Seeded admin profile');
     }
   } catch (err) {
     console.error('Seeding failed:', err);
@@ -899,6 +918,107 @@ app.post('/api/groups/:groupId/files', async (req, res) => {
     res.status(201).json(group);
   } catch (err) {
     res.status(400).json({ error: 'Failed to share file: ' + err.message });
+  }
+});
+
+// Admin endpoints
+
+// Helper to check if requesting user is admin
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const user = await UserProfile.findOne({ userId });
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied: Administrators only' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+};
+
+// Fetch admin stats
+app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
+  try {
+    const studentCount = await UserProfile.countDocuments({ role: 'student' });
+    const instructorCount = await UserProfile.countDocuments({ role: 'instructor' });
+    const courseCount = await Course.countDocuments();
+    const groupCount = await Group.countDocuments();
+
+    res.json({
+      students: studentCount,
+      instructors: instructorCount,
+      courses: courseCount,
+      groups: groupCount
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch admin stats: ' + err.message });
+  }
+});
+
+// Fetch all users
+app.get('/api/admin/users', verifyAdmin, async (req, res) => {
+  try {
+    const users = await UserProfile.find().sort({ name: 1 });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch users: ' + err.message });
+  }
+});
+
+// Create new user (student/instructor)
+app.post('/api/admin/users', verifyAdmin, async (req, res) => {
+  try {
+    const { name, email, password, role, title } = req.body;
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ error: 'Name, email, password, and role are required' });
+    }
+
+    const existingUser = await UserProfile.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    const newUserId = `user-${Date.now()}`;
+    const newUser = new UserProfile({
+      userId: newUserId,
+      email: email.toLowerCase(),
+      password,
+      name,
+      avatar: `https://images.unsplash.com/photo-${['1535713875002-d1d0cf377fde', '1494790108377-be9c29b29330', '1599566150163-29194dcaad36', '1507003211169-0a1dd7228f2d'][Math.floor(Math.random()*4)]}?w=150&auto=format&fit=crop&q=80`,
+      title: title || (role === 'instructor' ? 'Authorized Academy Instructor' : 'Aspiring Full Stack Engineer'),
+      role,
+      xp: role === 'admin' ? 9999 : 0,
+      streak: 1,
+      enrolled: {}
+    });
+
+    await newUser.save();
+    res.status(201).json(newUser);
+  } catch (err) {
+    res.status(400).json({ error: 'Failed to create user: ' + err.message });
+  }
+});
+
+// Delete user profile
+app.delete('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const adminId = getUserId(req);
+    
+    if (userId === adminId) {
+      return res.status(400).json({ error: 'You cannot delete your own admin account' });
+    }
+
+    const user = await UserProfile.findOne({ userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await UserProfile.deleteOne({ userId });
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete user: ' + err.message });
   }
 });
 
